@@ -200,11 +200,25 @@
         async (position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
-          await capturarUbicacion(lat, lng);
+          const precision = position.coords.accuracy; // Precisión en metros
+          
+          // Verificar precisión
+          if (precision < 5) {
+            document.getElementById('info-content').innerHTML = `✅ Precisión GPS: ${precision.toFixed(1)}m<br><strong>Seguro para enviar reporte</strong>`;
+            await capturarUbicacion(lat, lng);
+          } else {
+            document.getElementById('info-content').innerHTML = `⚠️ Precisión GPS: ${precision.toFixed(1)}m<br><strong>Espera a que mejore la señal (necesitas menos de 5m)</strong>`;
+            alert(`⚠️ Precisión GPS actual: ${precision.toFixed(1)} metros\n\nLa precisión debe ser menor a 5 metros para garantizar la ubicación exacta del reporte.\n\nPor favor:\n• Sal al aire libre\n• Aléjate de edificios altos\n• Espera unos segundos y vuelve a intentar`);
+          }
         },
         (error) => {
           alert('Error al obtener ubicación: ' + error.message);
           document.getElementById('info-content').innerHTML = 'Error al obtener ubicación GPS';
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     });
