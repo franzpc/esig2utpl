@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reportes SNAP</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .info { 
+      position: absolute; 
+      top: 10px; 
+      right: 10px; 
+      background: white; 
+      padding: 15px; 
+      border-radius: 5px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      max-width: 300px;
+      z-index: 1000;
+    }
+    .info h3 { margin: 0 0 10px 0; font-size: 16px; }
+    .info p { margin: 5px 0; font-size: 14px; }
+    .loading { 
+      position: absolute; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 5px;
+      z-index: 2000;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="info">
+    <h3>📝 Sistema de Reportes</h3>
+    <p id="info-content">Haz clic en cualquier lugar del mapa</p>
+  </div>
+  
+  <div id="form-container" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:3000; width:90%; max-width:400px; max-height:90vh; overflow-y:auto;">
+    <h3 style="margin-top:0;">📝 Nuevo Reporte</h3>
+    <form id="reporte-form">
+      <label>Nombres:</label>
+      <input type="text" id="nombres" required style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px;">
+      
+      <label>Tipo de Problema:</label>
+      <select id="tipo_problema" required style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px;">
+        <option value="">Seleccionar...</option>
+        <option value="Deforestación">Deforestación</option>
+        <option value="Incendio">Incendio</option>
+        <option value="Caza ilegal">Caza ilegal</option>
+        <option value="Contaminación">Contaminación</option>
+        <option value="Invasión">Invasión</option>
+        <option value="Basura">Basura</option>
+        <option value="Tala ilegal">Tala ilegal</option>
+        <option value="Otro">Otro</option>
+      </select>
+      
+      <label>Comentarios:</label>
+      <textarea id="comentarios" rows="3" style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px;"></textarea>
+      
+      <label>Parroquia:</label>
+      <input type="text" id="parroquia" readonly style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px; background:#f5f5f5;">
+      
+      <label>Cantón:</label>
+      <input type="text" id="canton" readonly style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px; background:#f5f5f5;">
+      
+      <label>Longitud:</label>
+      <input type="number" step="any" id="longitud" required readonly style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px; background:#f5f5f5;">
+      
+      <label>Latitud:</label>
+      <input type="number" step="any" id="latitud" required readonly style="width:100%; padding:8px; margin:5px 0 15px 0; border:1px solid #ddd; border-radius:4px; background:#f5f5f5;">
+      
+      <div style="display:flex; gap:10px;">
+        <button type="submit" style="flex:1; padding:10px; background:#3ecf8e; color:white; border:none; border-radius:4px; cursor:pointer;">Guardar</button>
+        <button type="button" onclick="cerrarFormulario()" style="flex:1; padding:10px; background:#666; color:white; border:none; border-radius:4px; cursor:pointer;">Cancelar</button>
+      </div>
+    </form>
+  </div>
+  
+  <button id="btn-reporte" style="position:absolute; bottom:80px; right:20px; padding:12px 20px; background:#e53e3e; color:white; border:none; border-radius:6px; cursor:pointer; z-index:1000; box-shadow:0 2px 5px rgba(0,0,0,0.3);">
+    📍 Nuevo Reporte
+  </button>
+  
+  <button id="btn-gps" style="position:absolute; bottom:20px; right:20px; padding:12px 20px; background:#3b82f6; color:white; border:none; border-radius:6px; cursor:pointer; z-index:1000; box-shadow:0 2px 5px rgba(0,0,0,0.3);">
+    🌐 Mi Ubicación
+  </button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    const SUPABASE_URL = 'https://wtxjnetbjiifptriqgft.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0eGpuZXRiamlpZnB0cmlxZ2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4NDgwNjAsImV4cCI6MjA4MTQyNDA2MH0.fhnDUe6GrTMaQBUDnIFKSL4WdatJUuxRU4hGpljnQ9I';
+
+    // Inicializar mapa
+    const map = L.map('map').setView([-1.5, -78.5], 7);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let capturandoReporte = false;
+    let markerReporte = null;
+
+    // Consultar parroquia y cantón
+    async function consultarParroquia(lat, lng) {
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_parroquia_at_point`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ lon: lng, lat: lat })
+          }
+        );
+
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          return {
+            parroquia: data[0].parroquia,
+            canton: data[0].canton
+          };
+        }
+        return null;
+      } catch (error) {
+        console.error('Error consultando parroquia:', error);
+        return null;
+      }
+    }
+
+    // Capturar ubicación en el mapa
+    async function capturarUbicacion(lat, lng) {
+      document.getElementById('longitud').value = lng.toFixed(6);
+      document.getElementById('latitud').value = lat.toFixed(6);
+      
+      // Agregar marcador temporal
+      if (markerReporte) map.removeLayer(markerReporte);
+      markerReporte = L.marker([lat, lng]).addTo(map);
+      map.setView([lat, lng], 13);
+      
+      // Consultar parroquia y cantón
+      const ubicacion = await consultarParroquia(lat, lng);
+      if (ubicacion) {
+        document.getElementById('parroquia').value = ubicacion.parroquia;
+        document.getElementById('canton').value = ubicacion.canton;
+      } else {
+        document.getElementById('parroquia').value = 'Fuera de Ecuador';
+        document.getElementById('canton').value = 'N/A';
+      }
+      
+      document.getElementById('form-container').style.display = 'block';
+      capturandoReporte = false;
+    }
+
+    // Click en el mapa
+    map.on('click', async (e) => {
+      const { lat, lng } = e.latlng;
+      
+      // Si está en modo captura de reporte
+      if (capturandoReporte) {
+        await capturarUbicacion(lat, lng);
+        return;
+      }
+      
+      // Consulta normal de parroquia
+      const ubicacion = await consultarParroquia(lat, lng);
+      if (ubicacion) {
+        document.getElementById('info-content').innerHTML = `
+          <strong>📍 ${ubicacion.parroquia}</strong><br>
+          Cantón: ${ubicacion.canton}
+        `;
+      } else {
+        document.getElementById('info-content').innerHTML = 'Fuera del territorio ecuatoriano';
+      }
+    });
+
+    // Botón nuevo reporte (clic en mapa)
+    document.getElementById('btn-reporte').addEventListener('click', () => {
+      capturandoReporte = true;
+      document.getElementById('info-content').innerHTML = 'Haz clic en el mapa para ubicar el reporte';
+    });
+
+    // Botón GPS
+    document.getElementById('btn-gps').addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert('Tu navegador no soporta geolocalización');
+        return;
+      }
+
+      document.getElementById('info-content').innerHTML = 'Obteniendo ubicación GPS...';
+      
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          await capturarUbicacion(lat, lng);
+        },
+        (error) => {
+          alert('Error al obtener ubicación: ' + error.message);
+          document.getElementById('info-content').innerHTML = 'Error al obtener ubicación GPS';
+        }
+      );
+    });
+
+    // Cerrar formulario
+    function cerrarFormulario() {
+      document.getElementById('form-container').style.display = 'none';
+      document.getElementById('reporte-form').reset();
+      if (markerReporte) {
+        map.removeLayer(markerReporte);
+        markerReporte = null;
+      }
+    }
+    window.cerrarFormulario = cerrarFormulario;
+
+    // Enviar formulario
+    document.getElementById('reporte-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const datos = {
+        nombres: document.getElementById('nombres').value,
+        tipo_problema: document.getElementById('tipo_problema').value,
+        comentarios: document.getElementById('comentarios').value,
+        longitud: parseFloat(document.getElementById('longitud').value),
+        latitud: parseFloat(document.getElementById('latitud').value),
+        parroquia: document.getElementById('parroquia').value,
+        canton: document.getElementById('canton').value
+      };
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/reportes_snap`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(datos)
+          }
+        );
+
+        if (response.ok) {
+          // Enviar notificación a Telegram
+          await enviarTelegram(datos);
+          
+          alert('Reporte guardado exitosamente');
+          cerrarFormulario();
+          loadReportes();
+        } else {
+          alert('Error al guardar el reporte');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+
+    // Función para enviar notificación a Telegram
+    async function enviarTelegram(datos) {
+      const botToken = '7991087801:AAG6iW_8RAmc6fRRJqIRccA81_VocdmifVQ';
+      const todosChatIds = ['1732673300', '5736838270', '405891742', '1116340725', '5495683947', '8282196752', '5248508833', '5763557931'];
+      
+      let chatIds = [];
+      
+      // Asignar responsables
+      if (datos.tipo_problema === 'Deforestación') {
+        chatIds = ['998966802'];
+      } else {
+        // Seleccionar 2-3 personas aleatorias
+        const cantidad = 2 + Math.floor(Math.random() * 2);
+        const shuffled = todosChatIds.sort(() => 0.5 - Math.random());
+        chatIds = shuffled.slice(0, cantidad);
+      }
+      
+      // Construir mensaje
+      const mensaje = `🚨 *NUEVO REPORTE SNAP*\n\n` +
+                     `👤 *Reportado por:* ${datos.nombres}\n` +
+                     `⚠️ *Tipo:* ${datos.tipo_problema}\n` +
+                     `📍 *Ubicación:* ${datos.parroquia}, ${datos.canton}\n` +
+                     `📝 *Comentarios:* ${datos.comentarios || 'Sin comentarios'}\n\n` +
+                     `🌐 *Coordenadas:* ${datos.latitud}, ${datos.longitud}\n\n` +
+                     `[Ver en Google Maps](https://www.google.com/maps?q=${datos.latitud},${datos.longitud})`;
+      
+      // Enviar a cada responsable
+      for (const chatId of chatIds) {
+        try {
+          // Enviar mensaje
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: mensaje,
+              parse_mode: 'Markdown'
+            })
+          });
+          
+          // Esperar un poco
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Enviar ubicación
+          await fetch(`https://api.telegram.org/bot${botToken}/sendLocation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              latitude: datos.latitud,
+              longitude: datos.longitud
+            })
+          });
+        } catch (error) {
+          console.error('Error enviando a Telegram:', error);
+        }
+      }
+    }
+
+    // Cargar reportes existentes
+    async function loadReportes() {
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/reportes_snap?select=*`,
+          {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          }
+        );
+
+        const reportes = await response.json();
+        
+        reportes.forEach(r => {
+          const marker = L.marker([r.latitud, r.longitud], {
+            icon: L.icon({
+              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+              shadowSize: [41, 41]
+            })
+          });
+          
+          marker.bindPopup(`
+            <strong>${r.nombres}</strong><br>
+            <em>${r.tipo_problema}</em><br>
+            ${r.comentarios || ''}<br>
+            <strong>Ubicación:</strong> ${r.parroquia}, ${r.canton}<br>
+            <small>${new Date(r.fecha_reporte).toLocaleDateString()}</small>
+          `);
+          
+          marker.addTo(map);
+        });
+      } catch (error) {
+        console.error('Error cargando reportes:', error);
+      }
+    }
+
+    loadReportes();
+  </script>
+</body>
+</html>
