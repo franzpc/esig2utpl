@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reportes SNAP - Ecuador</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <h1>🌳 Sistema de Reportes SNAP</h1>
+      <p>Sistema Nacional de Áreas Protegidas del Ecuador</p>
+    </div>
+  </header>
+
+  <!-- Contenedor principal -->
+  <div class="main-container">
+    <!-- Mapa -->
+    <div class="map-section">
+      <div id="map"></div>
+      
+      <!-- Panel de información flotante -->
+      <div class="info-panel">
+        <div class="info-header">
+          <h3>📍 Información</h3>
+        </div>
+        <div class="info-body">
+          <p id="info-content">Haz clic en cualquier lugar del mapa para consultar la ubicación</p>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="action-buttons">
+        <button id="btn-reporte" class="fab fab-primary" title="Nuevo Reporte">
+          <span class="fab-icon">📝</span>
+          <span class="fab-text">Nuevo Reporte</span>
+        </button>
+        <button id="btn-gps" class="fab fab-secondary" title="Mi Ubicación">
+          <span class="fab-icon">📍</span>
+          <span class="fab-text">Mi Ubicación</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel lateral del formulario -->
+    <aside class="form-panel">
+      <div class="form-header">
+        <h3>🚨 Formulario de Reporte</h3>
+      </div>
+      
+      <!-- Control de capas -->
+      <div class="layer-control">
+        <label class="layer-toggle">
+          <input type="checkbox" id="toggle-parroquias">
+          <span>📍 Mostrar Parroquias</span>
+        </label>
+      </div>
+      
+      <form id="reporte-form">
+        <div class="form-group">
+          <label>👤 Nombres</label>
+          <input type="text" id="nombres" required placeholder="Ingresa tu nombre completo">
+        </div>
+
+        <div class="form-group">
+          <label>⚠️ Tipo de Problema</label>
+          <select id="tipo_problema" required>
+            <option value="">Seleccionar tipo...</option>
+            <option value="Deforestación">🌳 Deforestación</option>
+            <option value="Incendio">🔥 Incendio</option>
+            <option value="Caza ilegal">🦌 Caza ilegal</option>
+            <option value="Contaminación">☢️ Contaminación</option>
+            <option value="Invasión">🚧 Invasión</option>
+            <option value="Basura">🗑️ Basura</option>
+            <option value="Tala ilegal">🪓 Tala ilegal</option>
+            <option value="Otro">❓ Otro</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>💬 Comentarios</label>
+          <textarea id="comentarios" rows="3" placeholder="Describe lo que observaste..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>📍 Parroquia</label>
+            <input type="text" id="parroquia" readonly>
+          </div>
+          <div class="form-group">
+            <label>🏛️ Cantón</label>
+            <input type="text" id="canton" readonly>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>🌐 Longitud</label>
+            <input type="number" step="any" id="longitud" required readonly>
+          </div>
+          <div class="form-group">
+            <label>🌐 Latitud</label>
+            <input type="number" step="any" id="latitud" required readonly>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">💾 Guardar Reporte</button>
+          <button type="button" class="btn btn-secondary" onclick="limpiarFormulario()">Limpiar</button>
+        </div>
+      </form>
+    </aside>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
